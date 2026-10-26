@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Редактор каталога ИБП</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="calc.js"></script>
+</head>
+<body>
+  <main class="container">
+    <h1>Редактор каталога</h1>
+    <p><a href="index.html">Вернуться к калькулятору</a></p>
+    <p>Изменения выполняются только в браузере. Чтобы обновить сайт, скопируйте проверенный JSON в catalog.json в GitHub.</p>
+
+    <section class="panel">
+      <label for="file">Открыть catalog.json с компьютера</label>
+      <input id="file" type="file" accept=".json,application/json">
+      <p id="status" role="status">Загрузка каталога…</p>
+      <div class="form-grid">
+        <div class="field">
+          <label for="default-date">Дата цен по умолчанию</label>
+          <input id="default-date" type="date">
+        </div>
+        <div class="field">
+          <label for="version">Версия каталога</label>
+          <input id="version" type="text">
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>SKU и модель</th>
+              <th>Цена, руб</th>
+              <th>Дата цены</th>
+              <th>Использовать</th>
+              <th>Показывать цену</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="tool-actions">
+        <button id="check" type="button">Проверить каталог</button>
+        <button id="copy" type="button">Скопировать catalog.json</button>
+        <button id="tests" type="button">Проверить контрольные примеры</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Результаты проверки</h2>
+      <div id="validation" aria-live="polite"></div>
+    </section>
+
+    <details class="panel">
+      <summary>JSON для изменения характеристик и добавления моделей</summary>
+      <p>Здесь можно вставить текст JSON из мастер-каталога. После изменения примените его кнопкой ниже. Десятичные числа записывайте с точкой.</p>
+      <textarea id="json" spellcheck="false" aria-label="Каталог JSON"></textarea>
+      <button id="apply" type="button">Применить JSON</button>
+    </details>
+
+    <section id="manual-copy" class="panel" hidden>
+      <h2>Ручное копирование</h2>
+      <p>Скопируйте выделенный текст и вставьте его в catalog.json.</p>
+      <textarea id="output" readonly aria-label="Проверенный JSON"></textarea>
+    </section>
+  </main>
+
+  <script>
+    "use strict";
+    (() => {
+      const $ = id => document.getElementById(id);
+      let raw = null;
+      const fieldBindings = [];
+
+      function node(tag, text) {
+        const result = document.createElement(tag);
+        if (text != null) result.textContent = text;
+        return result;
+      }
+
+      function showValidation(validated) {
+        $("validation").replaceChildren();
+        const lines = [
+          `Ошибочных записей ${validated.invalidRecords}. Отключённых ${validated.disabledRecords}.`,
+          ...validated.errors.map(e => `Ошибка. ${e.sku}. ${e.message}`),
+          ...validated.warnings.map(e => `Предупреждение. ${e.sku}. ${e.message}`)
+        ];
+        lines.forEach(line => $("validation").append(node("p", line)));
+      }
+
+      function render() {
+        $("rows").replaceChildren();
+        fieldBindings.length = 0;
+        $("default-date").value = raw.meta.defaultPriceDate;
+        $("version").value = raw.meta.version;
+        [...raw.ups, ...raw.batteries].forEach(record => {
+          const tr = node("tr");
+          tr.append(node("td", `${record.sku}\n${record.model}`));
+          [
+            ["priceRub", "number"],
+            ["priceDate", "date"],
+            ["enabled", "checkbox"],
+            ["showPrice", "checkbox"]
+          ].forEach(([key, type]) => {
+            const td = node("td");
+            const input = node("input");
+            input.type = type;
+            input.setAttribute("aria-label", `${record.sku} ${key}`);
+            if (type === "checkbox") input.checked = record[key] === true;
+            else input.value = record[key] ?? "";
+            if (type === "number") {
+              input.min = "0";
+              input.step = "any";
+            }
+            input.addEventListener("input", () => {
+              record[key] = type === "checkbox"
+                ? input.checked
+                : input.value === "" ? null
+                  : type === "number" ? Number(input.value) : input.value;
+              synchronizeText();
+              $("status").textContent = "Есть изменения. Проверьте каталог перед копированием.";
+            });
+            fieldBindings.push(input);
+            td.append(input);
+            tr.append(td);
+          });
+          $("rows").append(tr);
+        });
+        synchronizeText();
+      }
+
+      function synchronizeText() {
+        if (!raw) return;
+        raw.meta.defaultPriceDate = $("default-date").value;
+        raw.meta.version = $("version").value.trim();
+        $("json").value = JSON.stringify(raw, null, 2);
+      }
+
+      function load(text) {
+        const next = UpsCalc.parseCatalog(text);
+        const validated = UpsCalc.validateCatalog(next);
+        raw = next;
+        render();
+        showValidation(validated);
+        $("status").textContent = "Каталог открыт. Изменения ещё не опубликованы.";
+      }
+
+      ["default-date", "version"].forEach(id => {
+        $(id).addEventListener("input", synchronizeText);
+      });
+
+      $("file").addEventListener("change", async event => {
+        const file = event.target.files[0];
+        if (!file) return;
+        try {
+          load(await file.text());
+        } catch (error) {
+          $("status").textContent = `Не удалось открыть каталог. ${error.message}`;
+        }
+      });
+
+      $("apply").addEventListener("click", () => {
+        try {
+          load($("json").value);
+        } catch (error) {
+          $("status").textContent = `JSON не применён. ${error.message}`;
+        }
+      });
+
+      function check() {
+        if (!raw) throw new Error("Сначала откройте или примените каталог.");
+        synchronizeText();
+        const validated = UpsCalc.validateCatalog(raw);
+        showValidation(validated);
+        return validated;
+      }
+
+      $("check").addEventListener("click", () => {
+        try {
+          const validated = check();
+          $("status").textContent = validated.errors.length
+            ? "Есть ошибки. Исправьте записи перед публикацией."
+            : "Ошибок нет. Предупреждения требуют инженерной проверки.";
+        } catch (error) {
+          $("status").textContent = error.message;
+        }
+      });
+
+      $("copy").addEventListener("click", async () => {
+        try {
+          const validated = check();
+          if (validated.errors.length) {
+            $("status").textContent = "Копирование остановлено. Сначала исправьте ошибки каталога.";
+            return;
+          }
+          const text = JSON.stringify(raw, null, 2);
+          try {
+            if (!navigator.clipboard) throw new Error("Буфер недоступен.");
+            await navigator.clipboard.writeText(text);
+            $("status").textContent = "JSON скопирован. Вставьте его в catalog.json в GitHub.";
+          } catch {
+            $("manual-copy").hidden = false;
+            $("output").value = text;
+            $("output").focus();
+            $("output").select();
+            $("status").textContent = "Скопируйте выделенный JSON вручную.";
+          }
+        } catch (error) {
+          $("status").textContent = error.message;
+        }
+      });
+
+      $("tests").addEventListener("click", () => {
+        try {
+          check();
+          const output = $("validation");
+          output.append(node("h3", "Контрольные примеры"));
+          const clone = () => JSON.parse(JSON.stringify(raw));
+          const baseInput = {
+            network: 1, voltage: 230, threePhaseLoad: false,
+            activeW: 1000, inductiveW: 0, minutes: 60,
+            reservePct: 25, chargeA: 30, budgetRub: null
+          };
+          const close = (a, b, tolerance = 1e-6) => Math.abs(a - b) < tolerance;
+          const run = (title, test) => {
+            try {
+              if (!test()) throw new Error("Получен другой результат.");
+              output.append(node("p", `${title} – пройден.`));
+            } catch (error) {
+              output.append(node("p", `${title} – не пройден. ${error.message}`));
+            }
+          };
+
+          function isolated(upsSku, batterySku) {
+            const c = clone();
+            c.ups = c.ups.filter(u => u.sku === upsSku);
+            c.batteries = c.batteries.filter(b => b.sku === batterySku);
+            c.params.replaceGroupWithKit = false;
+            return UpsCalc.validateCatalog(c);
+          }
+
+          run("Требуемая энергия при 1 кВт и 60 мин", () => {
+            const c = isolated("cpu-e5", "cpu-b51100");
+            const r = UpsCalc.calculate(c, baseInput);
+            return close(r.requirements.requiredEnergyKwh, 1 / 0.91 / 0.9);
+          });
+
+          run("Один e5 и один b51100", () => {
+            const r = UpsCalc.calculate(isolated("cpu-e5", "cpu-b51100"), baseInput);
+            const v = r.selected[0];
+            return v && v.N === 1 && v.K === 1 &&
+              close(v.runtimeMin, 245.7) &&
+              v.totalCost === 265000 && v.breakerA === 16 &&
+              close(v.allocatedKw, 3.68);
+          });
+
+          run("Подбор АКБ по току при 5 кВт", () => {
+            const r = UpsCalc.calculate(isolated("cpu-e5", "cpu-b51100"), {
+              ...baseInput, activeW: 5000, minutes: 1, reservePct: 0
+            });
+            return r.selected[0]?.K === 2;
+          });
+
+          run("Параллельная группа e5", () => {
+            const r = UpsCalc.calculate(isolated("cpu-e5", "cpu-b51100"), {
+              ...baseInput, activeW: 8000
+            });
+            const v = r.selected[0];
+            return v && v.N === 2 && v.K === 2 && close(v.runtimeMin, 61.425) &&
+              v.totalCost === 530000 &&
+              v.warnings.some(w => w.includes("Рекомендуется не менее 800"));
+          });
+
+          run("Пофазная установка", () => {
+            const r = UpsCalc.calculate(isolated("cpu-e5", "cpu-b51100"), {
+              ...baseInput, network: 3, voltage: 400, activeW: 9000
+            });
+            const v = r.selected[0];
+            return v && v.totalUps === 3 && v.totalBatteries === 3 &&
+              v.sharedBank && close(v.runtimeMin, 81.9);
+          });
+
+          run("Дефицит встроенной АКБ", () => {
+            const r = UpsCalc.calculate(isolated("cpu-i1", ""), {
+              ...baseInput, activeW: 500, minutes: 120
+            });
+            const v = r.selected[0];
+            return v && v.status === "не соответствует" &&
+              close(v.runtimeMin, 58.968);
+          });
+
+          run("Ограничение бюджета", () => {
+            const r = UpsCalc.calculate(isolated("cpu-e5", "cpu-b51100"), {
+              ...baseInput, budgetRub: 200000
+            });
+            return r.selected.length === 0 &&
+              r.rejections.some(x => x.reason === "Превышен бюджет");
+          });
+
+          run("Повтор SKU исключает обе записи", () => {
+            const c = clone();
+            c.ups = c.ups.filter(u => u.sku === "cpu-e5");
+            c.ups.push({ ...c.ups[0] });
+            const v = UpsCalc.validateCatalog(c);
+            return v.ups.length === 0 && v.invalidRecords === 2;
+          });
+
+          run("Округление автономии", () =>
+            UpsCalc.duration(18.9) === "18 мин" &&
+            UpsCalc.duration(81.9) === "1 ч 20 мин");
+        } catch (error) {
+          $("status").textContent = error.message;
+        }
+      });
+
+      fetch("catalog.json", { cache: "no-store" })
+        .then(response => {
+          if (!response.ok) throw new Error(`HTTP ${response.status}.`);
+          return response.text();
+        })
+        .then(load)
+        .catch(error => {
+          $("status").textContent =
+            `Автоматическая загрузка недоступна. ${error.message} Выберите JSON вручную или вставьте его текст.`;
+        });
+    })();
+  </script>
+</body>
+</html>
