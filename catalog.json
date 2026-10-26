@@ -1,355 +1,394 @@
-"use strict";
-
-(() => {
-  const $ = id => document.getElementById(id);
-  const fields = [
-    "network", "voltage", "threePhaseLoad", "activeW",
-    "inductiveW", "minutes", "reservePct", "chargeA", "budgetRub"
-  ];
-  let catalog = null;
-  let lastResult = null;
-  const number = (value, digits = 1) =>
-    Number(value).toLocaleString("ru-RU", {
-      maximumFractionDigits: digits,
-      minimumFractionDigits: digits
-    }).replace(/\u00a0|\u202f/g, " ");
-  const money = value => value == null ? "цена по запросу" : `${number(value, 0)} руб`;
-  const range = (value, unit, digits = 1) => {
-    if (!value) return "Нет показанных вариантов";
-    return value[0] === value[1]
-      ? `${number(value[0], digits)} ${unit}`
-      : `${number(value[0], digits)}–${number(value[1], digits)} ${unit}`;
-  };
-  const typeName = type => ({
-    builtin: "Встроенная",
-    external: "Внешняя",
-    "builtin+external": "Встроенная + внешняя"
-  }[type]);
-  const topologyName = type => ({
-    "line-interactive": "Линейно-интерактивная",
-    "double-conversion": "Двойное преобразование"
-  }[type]);
-
-  function element(tag, text, className) {
-    const node = document.createElement(tag);
-    if (text != null) node.textContent = text;
-    if (className) node.className = className;
-    return node;
-  }
-  function metric(parent, title, value) {
-    const row = element("div", null, "metric");
-    row.append(element("dt", title), element("dd", value));
-    parent.append(row);
-  }
-  function messages(parent, entries) {
-    parent.replaceChildren();
-    if (!entries.length) {
-      parent.append(element("p", "Замечаний нет."));
-      return;
+{
+  "meta": {
+    "catalogName": "Coway – мастер-каталог для калькулятора ИБП",
+    "version": "1.0",
+    "source": "Расчет ТКП AI check.xlsx",
+    "currency": "RUB",
+    "defaultPriceDate": "2026-09-29"
+  },
+  "params": {
+    "cosPhiMain": 1,
+    "cosPhiInductive": 0.8,
+    "inrushFactor": 3,
+    "powerReservePct": 25,
+    "defaultDodPct": 90,
+    "defaultEfficiencyPct": 91,
+    "defaultChargeCurrentA": 30,
+    "chargerEfficiencyPct": 95,
+    "chargeTailFactor": 1.1,
+    "inputPF": 0.99,
+    "breakerReserveFactor": 1.25,
+    "breakerSeriesA": [16, 20, 25, 32, 40, 50, 63, 80, 100, 125, 160, 200, 250],
+    "agingReservePct": 0,
+    "statusReserveThresholdPct": 10,
+    "energyCheckTolerancePct": 3,
+    "maxChargeTimeH": null,
+    "recommendedCapacityMandatory": false,
+    "recommendedCapacityForSingleUps": false,
+    "growUpsCountForBuiltInEnergy": false,
+    "replaceGroupWithKit": true,
+    "allowSinglePhaseUpsPerPhase": true,
+    "phaseUnbalanceFactor": 1
+  },
+  "ups": [
+    {
+      "sku": "cpw C 6-5", "series": "PowerWall Compact", "model": "PowerWall Compact 6/5 (6кВт/5кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-compact-5-5-5kvt-5kvtch/",
+      "priceRub": 228000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 5, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 6, "ratedKw": 6, "outputPF": 1,
+      "maxParallel": 3, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный/напольный/мобильный", "dimensionsMm": "450 × 270 × 550", "weightKg": "58",
+      "interfaces": "USB", "notes": "тип 3-в-1", "verify": "ссылка ведёт на страницу модели 5-5"
+    },
+    {
+      "sku": "cpw C 6-10", "series": "PowerWall Compact", "model": "PowerWall Compact 6/10 (6кВт/10кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-compact-6-10-6kvt-10kvtch/",
+      "priceRub": 338000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 10, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 6, "ratedKw": 6, "outputPF": 1,
+      "maxParallel": 3, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный/напольный/мобильный", "dimensionsMm": "450 × 270 × 710", "weightKg": "98",
+      "interfaces": "USB", "notes": "тип 3-в-1", "verify": ""
+    },
+    {
+      "sku": "cpw C 10-10", "series": "PowerWall Compact", "model": "PowerWall Compact 2х6/5 (12кВт/10кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-compact-10-10-10kvt-10kvtch/",
+      "priceRub": 456000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 10, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 12, "ratedKw": 12, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw C 6-5", "count": 2},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный/напольный/мобильный", "dimensionsMm": "1100 (450+200+450) × 270 × 550", "weightKg": "58х2",
+      "interfaces": "USB", "notes": "тип 3-в-1", "verify": "SKU и ссылка содержат 10-10 при мощности 12 кВт"
+    },
+    {
+      "sku": "cpw C 18-15", "series": "PowerWall Compact", "model": "PowerWall Compact 3х6/5 (3х6кВт/5кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-compact-15-15-15kvt-15кВтч/",
+      "priceRub": 1083000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 15, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 18, "ratedKw": 18, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw C 6-5", "count": 3},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный/напольный/мобильный", "dimensionsMm": "1750 (450+200+450+200+450) × 270 × 550", "weightKg": "58х3",
+      "interfaces": "USB", "notes": "тип 3-в-1", "verify": "ссылка ведёт на страницу модели 15-15"
+    },
+    {
+      "sku": "cpw C 12-20", "series": "PowerWall Compact", "model": "PowerWall Compact 2х6/10 (2х6кВт/10кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-compact-10-20-10kvt-20kvtch/",
+      "priceRub": 676000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 20, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 12, "ratedKw": 12, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw C 6-10", "count": 2},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный/напольный/мобильный", "dimensionsMm": "1100 (450+200+450) × 270 × 710", "weightKg": "98х2",
+      "interfaces": "USB", "notes": "тип 3-в-1", "verify": "ссылка ведёт на страницу модели 10-20"
+    },
+    {
+      "sku": "cpw C 18-30", "series": "PowerWall Compact", "model": "PowerWall Compact 3х6/10 (3х6кВт/10кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-compact-15-30-15kvt-30kvtch/",
+      "priceRub": 1653000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 30, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 18, "ratedKw": 18, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw C 6-10", "count": 3},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный/напольный/мобильный", "dimensionsMm": "1750 (450+200+450+200+450) × 270 × 710", "weightKg": "98х3",
+      "interfaces": "USB", "notes": "тип 3-в-1", "verify": "ссылка ведёт на страницу модели 15-30"
+    },
+    {
+      "sku": "cpw 5-5", "series": "PowerWall", "model": "PowerWall 5/5 (5кВт/5кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-5-5-5kvt-5kvtch/",
+      "priceRub": 380000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin+external", "compatibleBatterySeries": "PowerWall", "maxExternalBatteriesPerUps": 3, "builtInEnergyKwh": 5, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 5, "ratedKw": 5, "outputPF": 1,
+      "maxParallel": 3, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550 × 230 × 1220", "weightKg": "80",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 5-10", "series": "PowerWall", "model": "PowerWall 5/10 (5кВт/10кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-5-10-5kvt-10kvtch/",
+      "priceRub": 580000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 10, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 5, "ratedKw": 5, "outputPF": 1,
+      "maxParallel": 3, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550 × 230 × 1710", "weightKg": "130",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 5-20", "series": "PowerWall", "model": "PowerWall 5/20 (5кВт/20кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-5-20-5kvt-20kvtch/",
+      "priceRub": 1020000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 20, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 5, "ratedKw": 5, "outputPF": 1,
+      "maxParallel": 3, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550+550 × 230 × 1710+1080", "weightKg": "130+100",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 10-10", "series": "PowerWall", "model": "PowerWall 10/10 (10кВт/10кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-10-10-10kvt-10kvtch/",
+      "priceRub": 720000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 10, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 10, "ratedKw": 10, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 5-5", "count": 2},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550+550 × 230 × 1220+1220", "weightKg": "80х2",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 10-20", "series": "PowerWall", "model": "PowerWall 10/20 (10кВт/20кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-10-20-10kvt-20kvtch/",
+      "priceRub": 1160000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 20, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 10, "ratedKw": 10, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 5-10", "count": 2},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550+550 × 230 × 1710+1710", "weightKg": "130х2",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 10-40", "series": "PowerWall", "model": "PowerWall 10/40 (10кВт/40кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-10-40-10kvt-40kvtch/",
+      "priceRub": 2040000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 40, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 1, "outputPhases": 1, "ratedKva": 10, "ratedKw": 10, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 5-20", "count": 2},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550х4 × 230 × 1710х2+1080х2", "weightKg": "(130+100)х2",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 15-15", "series": "PowerWall", "model": "PowerWall 15/15 (15кВт/15кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-15-15-15kvt-15kvtch/",
+      "priceRub": 1080000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 15, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 15, "ratedKw": 15, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 5-5", "count": 3},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550х3 × 230 × 1220х3", "weightKg": "80х3",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 15-30", "series": "PowerWall", "model": "PowerWall 15/30 (15кВт/30кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-15-30-15kvt-30kvtch/",
+      "priceRub": 1740000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 30, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 15, "ratedKw": 15, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 5-10", "count": 3},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550х3 × 230 × 1710х3", "weightKg": "130х3",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 15-60", "series": "PowerWall", "model": "PowerWall 15/60 (15кВт/60кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-15-60-15kvt-60kvtch/",
+      "priceRub": 3060000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 60, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 15, "ratedKw": 15, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 5-20", "count": 3},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "550х3 × 230 × 1710х3+1080х3", "weightKg": "(130+100)х3",
+      "interfaces": "USB, WiFi, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 3p 10-15", "series": "PowerWall 3P", "model": "PowerWall 3P 10/15 (10кВт/15кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-3p-10-15-10kvt-15kvtch/",
+      "priceRub": 980000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 15, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 10, "ratedKw": 10, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "560 × 250 × 1820", "weightKg": "195",
+      "interfaces": "WiFi, Bluetooth, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 3p 20-30", "series": "PowerWall 3P", "model": "PowerWall 3P 20/30 (20кВт/30кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-3p-20-30-20kvt-30kvtch/",
+      "priceRub": 1960000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 30, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 20, "ratedKw": 20, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 3p 10-15", "count": 2},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "560+560 × 250 × 1820+1820", "weightKg": "195х2",
+      "interfaces": "WiFi, Bluetooth, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpw 3p 30-45", "series": "PowerWall 3P", "model": "PowerWall 3P 30/45 (30кВт/45кВтч)",
+      "url": "https://coway-rus.ru/product/coway-powerwall-3p-30-45-30kvt-45kvtch/",
+      "priceRub": 2793000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 45, "batteryVoltageV": 51.2,
+      "topology": "line-interactive", "inputPhases": 3, "outputPhases": 3, "ratedKva": 30, "ratedKw": 30, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": false, "recommendedAhPerUpsInParallel": null, "kitOf": {"sku": "cpw 3p 10-15", "count": 3},
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 120,
+      "formFactor": "Настенный", "dimensionsMm": "560х3 × 250 × 1820х3", "weightKg": "195х3",
+      "interfaces": "WiFi, Bluetooth, DRY IO", "notes": "тип 3-в-1, IP65, 0dB", "verify": ""
+    },
+    {
+      "sku": "cpu-i1", "series": "PowerUnit i", "model": "PowerUnit i1 (1кВА/0.9кВт, 0.6кВтч LiFePO4)",
+      "url": "https://coway-rus.ru/product/coway-powerunit-i1/",
+      "priceRub": 106000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 0.6, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 1, "ratedKw": 0.9, "outputPF": 0.9,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 8,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "438 × 400 × 88", "weightKg": "13.6",
+      "interfaces": "RS232, SNMP (Ethernet) опционально", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-i3", "series": "PowerUnit i", "model": "PowerUnit i3 (3кВА/2.7кВт, 1.2кВтч LiFePO4)",
+      "url": "https://coway-rus.ru/product/coway-powerunit-i3/",
+      "priceRub": 130500, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "builtin", "compatibleBatterySeries": null, "maxExternalBatteriesPerUps": 0, "builtInEnergyKwh": 1.2, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 3, "ratedKw": 2.7, "outputPF": 0.9,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 8,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "438 × 600 × 88", "weightKg": "20.9",
+      "interfaces": "RS232, SNMP (Ethernet) опционально", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-e1", "series": "PowerUnit e", "model": "PowerUnit e1 (1кВА/0.9кВт, LiFePO4)",
+      "url": "https://coway-rus.ru/product/coway-powerunit-e1/",
+      "priceRub": 60000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 1, "ratedKw": 0.9, "outputPF": 0.9,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 8,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "438 × 400 × 88", "weightKg": "8",
+      "interfaces": "RS232, USB, SNMP (Ethernet) опционально", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-e2", "series": "PowerUnit e", "model": "PowerUnit e2 (2кВА/1.8кВт, LiFePO4)",
+      "url": "https://coway-rus.ru/product/coway-powerunit-e2/",
+      "priceRub": 77000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 2, "ratedKw": 1.8, "outputPF": 0.9,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 8,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "438 × 400 × 88", "weightKg": "8.4",
+      "interfaces": "RS232, USB, SNMP (Ethernet) опционально", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-e3", "series": "PowerUnit e", "model": "PowerUnit e3 (3кВА/2.7кВт, LiFePO4)",
+      "url": "https://coway-rus.ru/product/coway-powerunit-e3/",
+      "priceRub": 104000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 3, "ratedKw": 2.7, "outputPF": 0.9,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 12,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "438 × 400 × 88", "weightKg": "8.9",
+      "interfaces": "RS232, USB, SNMP (Ethernet) опционально", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-e5", "series": "PowerUnit e", "model": "PowerUnit e5 (5кВА/5кВт, LiFePO4)",
+      "url": "https://coway-rus.ru/product/coway-powerunit-e5/",
+      "priceRub": 110000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 5, "ratedKw": 5, "outputPF": 1,
+      "maxParallel": 9, "allowPerPhase": true, "recommendedAhPerUpsInParallel": 400, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 30,
+      "formFactor": "Rack 19, 3U", "dimensionsMm": "438 × 420 × 131", "weightKg": "13.25",
+      "interfaces": "RS232, USB, SNMP (Ethernet) опционально", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-e5-snmp", "series": "PowerUnit e", "model": "PowerUnit e5 (5кВА/5кВт, LiFePO4, SNMP Solar)",
+      "url": "",
+      "priceRub": 155000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 5, "ratedKw": 5, "outputPF": 1,
+      "maxParallel": 9, "allowPerPhase": true, "recommendedAhPerUpsInParallel": 400, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 10, "maxChargeCurrentA": 30,
+      "formFactor": "Rack 19, 3U", "dimensionsMm": "438 × 420 × 131", "weightKg": "13.25",
+      "interfaces": "RS232, USB, SNMP (Ethernet) WiFi", "notes": "", "verify": ""
+    },
+    {
+      "sku": "cpu-e1_Pro", "series": "PowerUnit Pro", "model": "PowerUnit Pro e1",
+      "url": "",
+      "priceRub": 60000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 1, "ratedKw": 1, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 8,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "440 × 574 × 86", "weightKg": "10",
+      "interfaces": "RS232", "notes": "", "verify": "нет ссылки на страницу модели"
+    },
+    {
+      "sku": "cpu-e3_Pro", "series": "PowerUnit Pro", "model": "PowerUnit Pro e3",
+      "url": "",
+      "priceRub": 104000, "priceDate": null, "showPrice": true, "enabled": true,
+      "batteryType": "external", "compatibleBatterySeries": "PowerUnit b51", "maxExternalBatteriesPerUps": 8, "builtInEnergyKwh": 0, "batteryVoltageV": 51.2,
+      "topology": "double-conversion", "inputPhases": 1, "outputPhases": 1, "ratedKva": 3, "ratedKw": 3, "outputPF": 1,
+      "maxParallel": 1, "allowPerPhase": true, "recommendedAhPerUpsInParallel": null, "kitOf": null,
+      "efficiencyPct": 91, "overloadPct": 150, "overloadSec": 30, "maxChargeCurrentA": 12,
+      "formFactor": "Rack 19, 2U", "dimensionsMm": "440 × 574 × 86", "weightKg": "11",
+      "interfaces": "RS232", "notes": "", "verify": "нет ссылки на страницу модели"
     }
-    entries.forEach(text => parent.append(element("p", text)));
-  }
-
-  function acceptCatalog(raw) {
-    const validated = UpsCalc.validateCatalog(raw);
-    catalog = validated;
-    $("catalog-status").textContent =
-      `${catalog.meta.catalogName}. Версия ${catalog.meta.version}. ` +
-      `Доступно ИБП ${catalog.ups.length}, АКБ ${catalog.batteries.length}.`;
-    $("manual-catalog").hidden = false;
-    $("calculate").disabled = false;
-    $("reservePct").value = catalog.params.powerReservePct;
-    $("chargeA").value = catalog.params.defaultChargeCurrentA;
-    const check = [
-      `Ошибочных записей ${catalog.invalidRecords}. Отключённых записей ${catalog.disabledRecords}.`,
-      ...catalog.errors.map(e => `Ошибка. ${e.sku}. ${e.message}`),
-      ...catalog.warnings.map(e => `Предупреждение. ${e.sku}. ${e.message}`)
-    ];
-    messages($("catalog-check"), check);
-    lastResult = null;
-    $("results").hidden = true;
-  }
-
-  function catalogFailure(error) {
-    catalog = null;
-    lastResult = null;
-    $("calculate").disabled = true;
-    $("results").hidden = true;
-    $("catalog-status").textContent =
-      `Каталог не загрузился. ${error.message} Выберите catalog.json вручную.`;
-    $("manual-catalog").hidden = false;
-  }
-
-  fetch("catalog.json", { cache: "no-store" })
-    .then(response => {
-      if (!response.ok) throw new Error(`HTTP ${response.status}.`);
-      return response.text();
-    })
-    .then(text => acceptCatalog(UpsCalc.parseCatalog(text)))
-    .catch(catalogFailure);
-
-  $("catalog-file").addEventListener("change", async event => {
-    const file = event.target.files[0];
-    if (!file) return;
-    try {
-      acceptCatalog(UpsCalc.parseCatalog(await file.text()));
-    } catch (error) {
-      catalogFailure(error);
+  ],
+  "batteries": [
+    {
+      "sku": "bat 5kVh", "series": "PowerWall", "model": "PowerWall Bat 5кВтч",
+      "url": "",
+      "priceRub": 220000, "priceDate": null, "showPrice": true, "enabled": true,
+      "chemistry": "LFP", "voltageV": 51.2, "capacityAh": null, "energyKwh": 5, "dodPct": null, "maxDischargeA": null,
+      "tempMinC": null, "tempMaxC": null,
+      "formFactor": "Настенный", "dimensionsMm": "550 × 230 × 1080", "weightKg": "100",
+      "interfaces": "", "description": "АКБ для PowerWall 5/5",
+      "verify": "напряжение принято по PowerWall, ток разряда не указан, габариты выведены из PowerWall 5/20"
+    },
+    {
+      "sku": "cpu-b5130", "series": "PowerUnit b51", "model": "АКБ для ИБП, PowerUnit b5130 (51.2В LiFePO4, 1.5кВтч)",
+      "url": "https://coway-rus.ru/product/akb-dlya-ibp-coway-powerunit-b5130/",
+      "priceRub": 76000, "priceDate": null, "showPrice": true, "enabled": true,
+      "chemistry": "LFP", "voltageV": 51.2, "capacityAh": 30, "energyKwh": 1.5, "dodPct": null, "maxDischargeA": 60,
+      "tempMinC": null, "tempMaxC": null,
+      "formFactor": "Rack 19, 3U", "dimensionsMm": "438 × 250 × 132", "weightKg": "15.9",
+      "interfaces": "RS232, RS485, CAN, DRY-BMS", "description": "АКБ для PowerUnit e и PowerUnit Pro",
+      "verify": ""
+    },
+    {
+      "sku": "pu-b5150", "series": "PowerUnit b51", "model": "АКБ для ИБП, PowerUnit b5150 (51.2В LiFePO4, 2.5кВтч)",
+      "url": "https://coway-rus.ru/product/akb-dlya-ibp-coway-powerunit-b5150/",
+      "priceRub": 98000, "priceDate": null, "showPrice": true, "enabled": true,
+      "chemistry": "LFP", "voltageV": 51.2, "capacityAh": 50, "energyKwh": 2.5, "dodPct": null, "maxDischargeA": 100,
+      "tempMinC": null, "tempMaxC": null,
+      "formFactor": "Rack 19, 3U", "dimensionsMm": "438 × 500 × 132", "weightKg": "26.5",
+      "interfaces": "RS232, RS485, CAN, DRY-BMS", "description": "АКБ для PowerUnit e и PowerUnit Pro",
+      "verify": "SKU без префикса c"
+    },
+    {
+      "sku": "cpu-b51100", "series": "PowerUnit b51", "model": "АКБ для ИБП Coway PowerUnit b51100 (51.2В LiFePO4, 5кВтч)",
+      "url": "https://coway-rus.ru/product/akb-dlya-ibp-coway-powerunit-b51100/",
+      "priceRub": 155000, "priceDate": null, "showPrice": true, "enabled": true,
+      "chemistry": "LFP", "voltageV": 51.2, "capacityAh": 100, "energyKwh": 5, "dodPct": null, "maxDischargeA": 100,
+      "tempMinC": null, "tempMaxC": null,
+      "formFactor": "Rack 19, 3U", "dimensionsMm": "438 × 500 × 132", "weightKg": "42",
+      "interfaces": "RS232, RS485, CAN, DRY-BMS", "description": "АКБ для PowerUnit e и PowerUnit Pro",
+      "verify": ""
+    },
+    {
+      "sku": "cpu-b51200", "series": "PowerUnit b51", "model": "АКБ для ИБП Coway PowerUnit b51200 (51.2В LiFePO4, 10кВтч)",
+      "url": "",
+      "priceRub": 228000, "priceDate": null, "showPrice": true, "enabled": true,
+      "chemistry": "LFP", "voltageV": 51.2, "capacityAh": 200, "energyKwh": 10, "dodPct": null, "maxDischargeA": 100,
+      "tempMinC": null, "tempMaxC": null,
+      "formFactor": "Rack 19, 6U", "dimensionsMm": "438 × н/д × н/д", "weightKg": "80",
+      "interfaces": "", "description": "АКБ для PowerUnit e и PowerUnit Pro",
+      "verify": "нет ссылки, глубины, высоты и интерфейсов"
+    },
+    {
+      "sku": "cpu-b51300", "series": "PowerUnit b51", "model": "АКБ для ИБП Coway PowerUnit b51300 (51.2В LiFePO4, 15кВтч)",
+      "url": "",
+      "priceRub": 328000, "priceDate": null, "showPrice": true, "enabled": true,
+      "chemistry": "LFP", "voltageV": 51.2, "capacityAh": 300, "energyKwh": 15, "dodPct": null, "maxDischargeA": 100,
+      "tempMinC": null, "tempMaxC": null,
+      "formFactor": "Rack 19, 6U", "dimensionsMm": "438 × н/д × н/д", "weightKg": "н/д",
+      "interfaces": "", "description": "АКБ для PowerUnit e и PowerUnit Pro",
+      "verify": "нет ссылки, глубины, высоты, веса и интерфейсов"
     }
-  });
-
-  $("network").addEventListener("change", () => {
-    const three = $("network").value === "3";
-    $("voltage").value = three ? 400 : 230;
-    $("threePhaseLoad").disabled = !three;
-    if (!three) $("threePhaseLoad").value = "no";
-  });
-
-  $("form").addEventListener("input", () => {
-    if (lastResult) {
-      lastResult = null;
-      $("results").hidden = true;
-    }
-  });
-
-  function readNumber(id, emptyValue = NaN) {
-    const value = $(id).value.trim();
-    return value === "" ? emptyValue : Number(value);
-  }
-
-  function input() {
-    return {
-      network: Number($("network").value),
-      voltage: readNumber("voltage"),
-      threePhaseLoad: $("threePhaseLoad").value === "yes",
-      activeW: readNumber("activeW"),
-      inductiveW: readNumber("inductiveW", 0),
-      minutes: readNumber("minutes"),
-      reservePct: readNumber("reservePct"),
-      chargeA: readNumber("chargeA"),
-      budgetRub: readNumber("budgetRub", null)
-    };
-  }
-
-  function showErrors(errors) {
-    fields.forEach(id => {
-      $("error-" + id).textContent = errors[id] ?? "";
-      $(id).setAttribute("aria-invalid", errors[id] ? "true" : "false");
-    });
-    $("input-errors").replaceChildren();
-    const values = Object.values(errors);
-    $("input-errors").hidden = !values.length;
-    values.forEach(text => $("input-errors").append(element("p", text)));
-    if (values.length) $(Object.keys(errors)[0]).focus();
-  }
-
-  function requirementRows(result) {
-    const r = result.requirements;
-    const beyond = r.breakerAboveRange
-      ? `Есть вариант более ${result.maxBreakerA} А, требуется отдельный расчёт`
-      : "";
-    return [
-      ["Нагрузка P", `${number(r.P, 0)} Вт`],
-      ["Полная мощность S", `${number(r.S, 0)} ВА`],
-      ["Требуемая мощность ИБП", `${number(r.requiredKw, 2)} кВт`],
-      ["Требуемый номинал ИБП", `${number(r.requiredKva, 2)} кВА`],
-      ["Требуемая энергия АКБ, ориентировочная ёмкость", `${number(r.requiredEnergyKwh, 2)} кВт·ч`],
-      ["Пиковая полная мощность", `${number(r.peakKva, 2)} кВА`],
-      ["Выделенная мощность по автоматам показанных вариантов",
-        range(r.allocatedKwRange, "кВт") + (beyond ? `\n${beyond}` : "")],
-      ["Номиналы вводного автомата",
-        range(r.breakerRange, "А", 0) + (beyond ? `\n${beyond}` : "")],
-      ["Ориентировочное время заряда", range(r.chargeRangeH, "ч")]
-    ];
-  }
-
-  function variantRows(v, result) {
-    const u = v.ups;
-    const b = v.battery;
-    const scheme = v.scheme === "single" ? "Однофазная группа" :
-      v.scheme === "three"
-        ? `Трёхфазный ввод, ${u.outputPhases === 3 ? "трёхфазный" : "однофазный"} выход`
-        : "Пофазно 3 × группа";
-    let batteryScheme = "Внешних АКБ нет";
-    if (b) {
-      batteryScheme = v.sharedBank
-        ? `${v.totalBatteries} параллельно, общий банк на ${v.totalUps} ИБП. Расчётный эквивалент ${v.K} АКБ на фазу`
-        : v.groups === 3
-          ? `На каждой фазе ${v.K} параллельно, отдельный банк на ${v.N} ИБП`
-          : `${v.K} параллельно, общий банк на ${v.N} ИБП`;
-    }
-    const breaker = v.breakerA == null
-      ? `Более ${result.maxBreakerA} А, требуется отдельный расчёт`
-      : `${v.breakerA} А, ${result.input.network === 3 ? "трёхполюсный" : "однополюсный"}`;
-    const rows = [
-      ["Статус", v.status],
-      ["Схема", `${scheme}. N без резервирования`],
-      ["Оборудование", `Coway. ${v.product.series}. ${v.product.model}\nSKU ${v.product.sku}`],
-      ["Количество товарных позиций ИБП", `${v.productCount} шт`],
-      ["Расчётный блок ИБП", `${u.model}\nSKU ${u.sku}`],
-      ["Топология", topologyName(u.topology)],
-      ["Номинал одного расчётного блока", `${number(u.ratedKva, 2)} кВА / ${number(u.ratedKw, 2)} кВт`],
-      ["ИБП в расчёте", `${v.N} на группу, всего ${v.totalUps}`],
-      ["Суммарный номинал", `${number(v.ratedKva, 2)} кВА / ${number(v.ratedKw, 2)} кВт`],
-      ["Загрузка группы", `${number(v.loadKwPct)} % по кВт / ${number(v.loadKvaPct)} % по кВА`],
-      ["Тип АКБ", typeName(u.batteryType)],
-      ["Встроенная АКБ", u.builtInEnergyKwh > 0
-        ? `${number(u.builtInEnergyKwh, 2)} кВт·ч на расчётный блок, всего ${number(v.builtEnergyKwh, 2)} кВт·ч. Входит в стоимость ИБП`
-        : "Нет"],
-      ["Внешняя АКБ", b ? `Coway. ${b.model}\nSKU ${b.sku}. Химия ${b.chemistry}` : "Нет"],
-      ["Количество внешних АКБ", `${v.K} на расчётную группу, всего ${v.totalBatteries}`],
-      ["Схема АКБ", batteryScheme],
-      ["Полная энергия всех АКБ", `${number(v.fullEnergyKwh, 2)} кВт·ч`],
-      ["Полезная энергия всех АКБ", `${number(v.usefulEnergyKwh, 2)} кВт·ч`],
-      ["Расчётная автономия выбранной конфигурации", UpsCalc.duration(v.runtimeMin)],
-      ["Целевая автономия", `${number(result.input.minutes, 1)} мин`],
-      [v.deltaMin >= 0 ? "Запас автономии" : "Дефицит автономии",
-        `${number(Math.abs(v.deltaMin), 2)} мин / ${number(Math.abs(v.deltaPct), 2)} %`],
-      ["Ток заряда", `${number(v.chargeA)} А на расчётный ИБП, суммарно ${number(v.chargeA * v.totalUps)} А`],
-      ["Ориентировочное время заряда", `${number(v.chargeMinH)}–${number(v.chargeMaxH)} ч`],
-      ["Расчётная мощность на вводе", `${number(v.inputKw, 2)} кВт`],
-      ["Расчётный ток на вводе", `${number(v.inputA, 2)} А${result.input.network === 3 ? " на фазу" : ""}`],
-      ["Вводной автомат", breaker],
-      ["Требуемая выделенная мощность по автомату",
-        v.allocatedKw == null ? "Требуется отдельный расчёт" : `${number(v.allocatedKw, 2)} кВт`],
-      ["Стоимость ИБП", money(v.upsCost)],
-      ["Стоимость внешних АКБ", money(v.batteryCost)],
-      ["Итоговая стоимость", money(v.totalCost)],
-      ["Дата цен", v.priceDate]
-    ];
-    if (u.kitOf) {
-      rows.splice(4, 0, ["Состав комплекта",
-        `${u.kitOf.count} × ${u.kitOf.sku} на товарную позицию. Число расчётных блоков выше относится к комплектам`]);
-    }
-    if (v.dischargeA != null) {
-      rows.push(["Расчётный ток разряда банка группы", `${number(v.dischargeA, 2)} А`]);
-    }
-    if (u.formFactor) rows.push(["Исполнение ИБП", u.formFactor]);
-    if (u.dimensionsMm) rows.push(["Габариты ИБП, мм", u.dimensionsMm]);
-    if (u.weightKg) rows.push(["Масса ИБП, кг", String(u.weightKg)]);
-    if (u.interfaces) rows.push(["Интерфейсы ИБП", u.interfaces]);
-    if (u.notes) rows.push(["Примечание", u.notes]);
-    return rows;
-  }
-
-  function addLink(parent, url, title) {
-    if (!url) {
-      parent.append(element("p", `${title}. Ссылка отсутствует.`));
-      return;
-    }
-    const link = element("a", title);
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    const paragraph = element("p");
-    paragraph.append(link);
-    parent.append(paragraph);
-  }
-
-  function render(result) {
-    $("requirements").replaceChildren();
-    const dl = element("dl", null, "requirement-grid");
-    requirementRows(result).forEach(([title, value]) => metric(dl, title, value));
-    $("requirements").append(dl);
-    $("requirements").append(element("p",
-      "Общая требуемая энергия рассчитана с КПД и DoD по умолчанию. В карточках применяются характеристики выбранной модели.",
-      "muted"));
-
-    $("result-message").textContent = result.successfulCount
-      ? `Подходящих конфигураций ${result.successfulCount}. Показано ${result.selected.length}.`
-      : result.selected.length
-        ? "Целевая автономия не достигается либо конфигурации не проходят обязательные ограничения. Показаны ближайшие варианты, их нельзя считать подходящими."
-        : "Подходящих вариантов нет. Проверьте причины отказа.";
-
-    $("variants").replaceChildren();
-    result.selected.forEach((v, index) => {
-      const card = element("article", null, `card ${v.status === "не соответствует" ? "fail" : "pass"}`);
-      card.append(element("h3", `Вариант ${index + 1}`));
-      const badges = element("div", null, "badges");
-      v.labels.forEach(label => badges.append(element("span", label, "badge")));
-      card.append(badges);
-      const details = element("dl");
-      variantRows(v, result).forEach(([title, value]) => metric(details, title, value));
-      card.append(details);
-      addLink(card, v.product.url, "Страница ИБП");
-      if (v.battery) addLink(card, v.battery.url, "Страница внешней АКБ");
-      const warnings = element("div", null, "warning");
-      [...v.failures.map(text => `Причина несоответствия. ${text}`), ...v.warnings]
-        .forEach(text => warnings.append(element("p", text)));
-      if (warnings.childNodes.length) card.append(warnings);
-      $("variants").append(card);
-    });
-    messages($("rejection-list"), result.rejections.map(r => `${r.reason}. Моделей ${r.count}.`));
-    $("rejection-list").append(element("p",
-      "Количество считается по уникальным SKU внутри каждой причины. Одна модель может иметь несколько причин; числа не следует складывать.",
-      "muted"));
-    $("rejections").open = !result.successfulCount;
-    $("copy-status").textContent = "";
-    $("copy-fallback").hidden = true;
-    $("results").hidden = false;
-  }
-
-  $("form").addEventListener("submit", event => {
-    event.preventDefault();
-    if (!catalog) return;
-    const result = UpsCalc.calculate(catalog, input());
-    showErrors(result.inputErrors);
-    if (Object.keys(result.inputErrors).length) {
-      $("results").hidden = true;
-      lastResult = null;
-      return;
-    }
-    lastResult = result;
-    render(result);
-  });
-
-  function copyText(result) {
-    const x = result.input;
-    const lines = [
-      "Подбор ИБП и LFP АКБ",
-      `${catalog.meta.catalogName}. Версия ${catalog.meta.version}`,
-      "",
-      "Исходные данные",
-      `Сеть ${x.network === 3 ? "трёхфазная" : "однофазная"}, напряжение ${x.voltage} В`,
-      `Трёхфазные потребители ${x.threePhaseLoad ? "есть" : "нет"}`,
-      `Активная нагрузка ${x.activeW} Вт`,
-      `Индуктивная нагрузка ${x.inductiveW} Вт`,
-      `Целевая автономия ${x.minutes} мин`,
-      `Запас мощности ${x.reservePct} %`,
-      `Ток заряда ${x.chargeA} А на ИБП`,
-      `Бюджет ${x.budgetRub == null ? "без ограничения" : money(x.budgetRub)}`,
-      "",
-      "Требования к системе"
-    ];
-    requirementRows(result).forEach(([title, value]) => lines.push(`${title} – ${value}`));
-    lines.push("", $("result-message").textContent);
-    result.selected.forEach((v, i) => {
-      lines.push("", `Вариант ${i + 1}`, v.labels.join(", "));
-      variantRows(v, result).forEach(([title, value]) => lines.push(`${title} – ${value}`));
-      lines.push(`Ссылка ИБП – ${v.product.url || "не указана"}`);
-      if (v.battery) lines.push(`Ссылка АКБ – ${v.battery.url || "не указана"}`);
-      v.failures.forEach(text => lines.push(`Причина несоответствия – ${text}`));
-      v.warnings.forEach(text => lines.push(`Предупреждение – ${text}`));
-    });
-    lines.push("", "Причины отказа и ограничения");
-    result.rejections.forEach(r => lines.push(`${r.reason} – моделей ${r.count}`));
-    lines.push("", "Предварительный расчёт. Не заменяет проектирование и подтверждение характеристик производителем.");
-    return lines.join("\n");
-  }
-
-  $("copy").addEventListener("click", async () => {
-    if (!lastResult) return;
-    const text = copyText(lastResult);
-    try {
-      if (!navigator.clipboard) throw new Error("Буфер обмена недоступен.");
-      await navigator.clipboard.writeText(text);
-      $("copy-status").textContent = "Результат скопирован.";
-    } catch {
-      $("copy-fallback").value = text;
-      $("copy-fallback").hidden = false;
-      $("copy-fallback").focus();
-      $("copy-fallback").select();
-      $("copy-status").textContent = "Автоматическое копирование недоступно. Скопируйте выделенный текст вручную.";
-    }
-  });
-})();
+  ]
+}
