@@ -3,32 +3,30 @@
 (() => {
   const $ = id => document.getElementById(id);
   const fields = [
-    "network", "voltage", "threePhaseLoad", "activeW",
-    "inductiveW", "minutes", "reservePct", "chargeA", "budgetRub"
+    "network", "threePhaseLoad", "activeW",
+    "inductiveW", "minutes", "reservePct"
   ];
   let catalog = null;
   let lastResult = null;
-  const number = (value, digits = 1) =>
-    Number(value).toLocaleString("ru-RU", {
-      maximumFractionDigits: digits,
-      minimumFractionDigits: digits
+
+  function number(value, digits = 1) {
+    return Number(value).toLocaleString("ru-RU", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
     }).replace(/\u00a0|\u202f/g, " ");
-  const money = value => value == null ? "цена по запросу" : `${number(value, 0)} руб`;
-  const range = (value, unit, digits = 1) => {
-    if (!value) return "Нет показанных вариантов";
-    return value[0] === value[1]
-      ? `${number(value[0], digits)} ${unit}`
-      : `${number(value[0], digits)}–${number(value[1], digits)} ${unit}`;
-  };
-  const typeName = type => ({
-    builtin: "Встроенная",
-    external: "Внешняя",
-    "builtin+external": "Встроенная + внешняя"
-  }[type]);
-  const topologyName = type => ({
-    "line-interactive": "Линейно-интерактивная",
-    "double-conversion": "Двойное преобразование"
-  }[type]);
+  }
+
+  function money(value) {
+    return value == null ? "цена по запросу" : `${number(value, 0)} руб`;
+  }
+
+  function range(values, unit, digits = 1) {
+    if (!values) return "Нет показанных вариантов";
+    if (values[0] === values[1]) {
+      return `${number(values[0], digits)} ${unit}`;
+    }
+    return `${number(values[0], digits)}–${number(values[1], digits)} ${unit}`;
+  }
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -36,11 +34,13 @@
     if (className) node.className = className;
     return node;
   }
+
   function metric(parent, title, value) {
     const row = element("div", null, "metric");
     row.append(element("dt", title), element("dd", value));
     parent.append(row);
   }
+
   function messages(parent, entries) {
     parent.replaceChildren();
     if (!entries.length) {
@@ -51,21 +51,21 @@
   }
 
   function acceptCatalog(raw) {
-    const validated = UpsCalc.validateCatalog(raw);
-    catalog = validated;
+    catalog = UpsCalc.validateCatalog(raw);
     $("catalog-status").textContent =
-      `${catalog.meta.catalogName}. Версия ${catalog.meta.version}. ` +
-      `Доступно ИБП ${catalog.ups.length}, АКБ ${catalog.batteries.length}.`;
-    $("manual-catalog").hidden = false;
+      `Каталог загружен. Доступно ИБП ${catalog.ups.length}, АКБ ${catalog.batteries.length}.`;
+    $("manual-catalog").hidden = true;
     $("calculate").disabled = false;
     $("reservePct").value = catalog.params.powerReservePct;
-    $("chargeA").value = catalog.params.defaultChargeCurrentA;
-    const check = [
+
+    messages($("catalog-check"), [
       `Ошибочных записей ${catalog.invalidRecords}. Отключённых записей ${catalog.disabledRecords}.`,
-      ...catalog.errors.map(e => `Ошибка. ${e.sku}. ${e.message}`),
-      ...catalog.warnings.map(e => `Предупреждение. ${e.sku}. ${e.message}`)
-    ];
-    messages($("catalog-check"), check);
+      ...catalog.errors.map(item =>
+        `Ошибка. ${item.sku}. ${item.message}`),
+      ...catalog.warnings.map(item =>
+        `Предупреждение. ${item.sku}. ${item.message}`)
+    ]);
+
     lastResult = null;
     $("results").hidden = true;
   }
@@ -98,36 +98,34 @@
     }
   });
 
-  $("network").addEventListener("change", () => {
-    const three = $("network").value === "3";
-    $("voltage").value = three ? 400 : 230;
-    $("threePhaseLoad").disabled = !three;
-    if (!three) $("threePhaseLoad").value = "no";
-  });
-
-  $("form").addEventListener("input", () => {
-    if (lastResult) {
-      lastResult = null;
-      $("results").hidden = true;
-    }
-  });
-
-  function readNumber(id, emptyValue = NaN) {
-    const value = $(id).value.trim();
-    return value === "" ? emptyValue : Number(value);
+  function clearResult() {
+    lastResult = null;
+    $("results").hidden = true;
   }
 
-  function input() {
+  $("network").addEventListener("change", () => {
+    const three = $("network").value === "3";
+    $("threePhaseLoad").disabled = !three;
+    if (!three) $("threePhaseLoad").value = "no";
+    clearResult();
+  });
+
+  $("form").addEventListener("input", clearResult);
+  $("form").addEventListener("change", clearResult);
+
+  function readNumber(id, emptyValue = NaN) {
+    const text = $(id).value.trim();
+    return text === "" ? emptyValue : Number(text);
+  }
+
+  function readInput() {
     return {
       network: Number($("network").value),
-      voltage: readNumber("voltage"),
       threePhaseLoad: $("threePhaseLoad").value === "yes",
       activeW: readNumber("activeW"),
       inductiveW: readNumber("inductiveW", 0),
       minutes: readNumber("minutes"),
-      reservePct: readNumber("reservePct"),
-      chargeA: readNumber("chargeA"),
-      budgetRub: readNumber("budgetRub", null)
+      reservePct: readNumber("reservePct")
     };
   }
 
@@ -136,11 +134,15 @@
       $("error-" + id).textContent = errors[id] ?? "";
       $(id).setAttribute("aria-invalid", errors[id] ? "true" : "false");
     });
+
     $("input-errors").replaceChildren();
-    const values = Object.values(errors);
-    $("input-errors").hidden = !values.length;
-    values.forEach(text => $("input-errors").append(element("p", text)));
-    if (values.length) $(Object.keys(errors)[0]).focus();
+    const entries = Object.entries(errors);
+    $("input-errors").hidden = !entries.length;
+
+    entries.forEach(([, text]) => {
+      $("input-errors").append(element("p", text));
+    });
+    if (entries.length) $(entries[0][0]).focus();
   }
 
   function requirementRows(result) {
@@ -148,96 +150,160 @@
     const beyond = r.breakerAboveRange
       ? `Есть вариант более ${result.maxBreakerA} А, требуется отдельный расчёт`
       : "";
+
     return [
       ["Нагрузка P", `${number(r.P, 0)} Вт`],
       ["Полная мощность S", `${number(r.S, 0)} ВА`],
       ["Требуемая мощность ИБП", `${number(r.requiredKw, 2)} кВт`],
       ["Требуемый номинал ИБП", `${number(r.requiredKva, 2)} кВА`],
-      ["Требуемая энергия АКБ, ориентировочная ёмкость", `${number(r.requiredEnergyKwh, 2)} кВт·ч`],
+      ["Требуемая энергия АКБ, ориентировочная ёмкость",
+        `${number(r.requiredEnergyKwh, 2)} кВт·ч`],
       ["Пиковая полная мощность", `${number(r.peakKva, 2)} кВА`],
-      ["Выделенная мощность по автоматам показанных вариантов",
-        range(r.allocatedKwRange, "кВт") + (beyond ? `\n${beyond}` : "")],
+      ["Рекомендуемая мощность сети по вводному автомату",
+        range(r.allocatedKwRange, "кВт") +
+        (beyond ? `\n${beyond}` : "")],
       ["Номиналы вводного автомата",
-        range(r.breakerRange, "А", 0) + (beyond ? `\n${beyond}` : "")],
-      ["Ориентировочное время заряда", range(r.chargeRangeH, "ч")]
+        range(r.breakerRange, "А", 0) +
+        (beyond ? `\n${beyond}` : "")],
+      ["Ориентировочное время заряда",
+        range(r.chargeRangeH, "ч")]
     ];
   }
 
-  function variantRows(v, result) {
-    const u = v.ups;
-    const b = v.battery;
-    const scheme = v.scheme === "single" ? "Однофазная группа" :
-      v.scheme === "three"
-        ? `Трёхфазный ввод, ${u.outputPhases === 3 ? "трёхфазный" : "однофазный"} выход`
-        : "Пофазно 3 × группа";
-    let batteryScheme = "Внешних АКБ нет";
-    if (b) {
-      batteryScheme = v.sharedBank
-        ? `${v.totalBatteries} параллельно, общий банк на ${v.totalUps} ИБП. Расчётный эквивалент ${v.K} АКБ на фазу`
-        : v.groups === 3
-          ? `На каждой фазе ${v.K} параллельно, отдельный банк на ${v.N} ИБП`
-          : `${v.K} параллельно, общий банк на ${v.N} ИБП`;
+  function schemeText(candidate) {
+    if (candidate.scheme === "single") {
+      return "Однофазная группа. N без резервирования";
     }
-    const breaker = v.breakerA == null
+    if (candidate.scheme === "perphase") {
+      return "Пофазно 3 × группа. N без резервирования";
+    }
+    return candidate.ups.outputPhases === 3
+      ? "Трёхфазная группа 3-в-3. N без резервирования"
+      : "Трёхфазный ввод, однофазный выход 3-в-1. N без резервирования";
+  }
+
+  function batteryType(candidate) {
+    if (candidate.ups.builtInEnergyKwh > 0) {
+      return candidate.battery ? "Встроенная + внешняя" : "Встроенная";
+    }
+    return "Внешняя";
+  }
+
+  function variantRows(candidate, result) {
+    const u = candidate.ups;
+    const b = candidate.battery;
+    const breaker = candidate.breakerA == null
       ? `Более ${result.maxBreakerA} А, требуется отдельный расчёт`
-      : `${v.breakerA} А, ${result.input.network === 3 ? "трёхполюсный" : "однополюсный"}`;
+      : `${candidate.breakerA} А, ${
+        result.input.network === 3 ? "трёхполюсный" : "однополюсный"
+      }`;
+
     const rows = [
-      ["Статус", v.status],
-      ["Схема", `${scheme}. N без резервирования`],
-      ["Оборудование", `Coway. ${v.product.series}. ${v.product.model}\nSKU ${v.product.sku}`],
-      ["Количество товарных позиций ИБП", `${v.productCount} шт`],
-      ["Расчётный блок ИБП", `${u.model}\nSKU ${u.sku}`],
-      ["Топология", topologyName(u.topology)],
-      ["Номинал одного расчётного блока", `${number(u.ratedKva, 2)} кВА / ${number(u.ratedKw, 2)} кВт`],
-      ["ИБП в расчёте", `${v.N} на группу, всего ${v.totalUps}`],
-      ["Суммарный номинал", `${number(v.ratedKva, 2)} кВА / ${number(v.ratedKw, 2)} кВт`],
-      ["Загрузка группы", `${number(v.loadKwPct)} % по кВт / ${number(v.loadKvaPct)} % по кВА`],
-      ["Тип АКБ", typeName(u.batteryType)],
-      ["Встроенная АКБ", u.builtInEnergyKwh > 0
-        ? `${number(u.builtInEnergyKwh, 2)} кВт·ч на расчётный блок, всего ${number(v.builtEnergyKwh, 2)} кВт·ч. Входит в стоимость ИБП`
-        : "Нет"],
-      ["Внешняя АКБ", b ? `Coway. ${b.model}\nSKU ${b.sku}. Химия ${b.chemistry}` : "Нет"],
-      ["Количество внешних АКБ", `${v.K} на расчётную группу, всего ${v.totalBatteries}`],
-      ["Схема АКБ", batteryScheme],
-      ["Полная энергия всех АКБ", `${number(v.fullEnergyKwh, 2)} кВт·ч`],
-      ["Полезная энергия всех АКБ", `${number(v.usefulEnergyKwh, 2)} кВт·ч`],
-      ["Расчётная автономия выбранной конфигурации", UpsCalc.duration(v.runtimeMin)],
-      ["Целевая автономия", `${number(result.input.minutes, 1)} мин`],
-      [v.deltaMin >= 0 ? "Запас автономии" : "Дефицит автономии",
-        `${number(Math.abs(v.deltaMin), 2)} мин / ${number(Math.abs(v.deltaPct), 2)} %`],
-      ["Ток заряда", `${number(v.chargeA)} А на расчётный ИБП, суммарно ${number(v.chargeA * v.totalUps)} А`],
-      ["Ориентировочное время заряда", `${number(v.chargeMinH)}–${number(v.chargeMaxH)} ч`],
-      ["Расчётная мощность на вводе", `${number(v.inputKw, 2)} кВт`],
-      ["Расчётный ток на вводе", `${number(v.inputA, 2)} А${result.input.network === 3 ? " на фазу" : ""}`],
-      ["Вводной автомат", breaker],
-      ["Требуемая выделенная мощность по автомату",
-        v.allocatedKw == null ? "Требуется отдельный расчёт" : `${number(v.allocatedKw, 2)} кВт`],
-      ["Стоимость ИБП", money(v.upsCost)],
-      ["Стоимость внешних АКБ", money(v.batteryCost)],
-      ["Итоговая стоимость", money(v.totalCost)],
-      ["Дата цен", v.priceDate]
+      ["Статус", candidate.status],
+      ["Схема подключения", schemeText(candidate)],
+      ["Модель ИБП", candidate.product.model]
     ];
-    if (u.kitOf) {
-      rows.splice(4, 0, ["Состав комплекта",
-        `${u.kitOf.count} × ${u.kitOf.sku} на товарную позицию. Число расчётных блоков выше относится к комплектам`]);
+
+    if (candidate.replacement) {
+      rows.push([
+        "Расчётная единица ИБП",
+        `${u.model}. Далее номиналы и количества приведены для составляющих блоков комплекта`
+      ]);
+    } else if (u.kitOf) {
+      rows.push([
+        "Расчётная единица ИБП",
+        "Готовый комплект. Далее номиналы и количества приведены для комплектов"
+      ]);
     }
-    if (v.dischargeA != null) {
-      rows.push(["Расчётный ток разряда банка группы", `${number(v.dischargeA, 2)} А`]);
-    }
-    if (u.formFactor) rows.push(["Исполнение ИБП", u.formFactor]);
-    if (u.dimensionsMm) rows.push(["Габариты ИБП, мм", u.dimensionsMm]);
-    if (u.weightKg) rows.push(["Масса ИБП, кг", String(u.weightKg)]);
-    if (u.interfaces) rows.push(["Интерфейсы ИБП", u.interfaces]);
-    if (u.notes) rows.push(["Примечание", u.notes]);
+
+    rows.push(
+      ["Номинал одной расчётной единицы ИБП",
+        `${number(u.ratedKva, 2)} кВА / ${number(u.ratedKw, 2)} кВт`],
+      ["Число ИБП",
+        `${candidate.N} на группу, всего ${candidate.totalUps}`],
+      ["Суммарный номинал",
+        `${number(candidate.ratedKva, 2)} кВА / ${number(candidate.ratedKw, 2)} кВт`],
+      ["Загрузка группы ИБП",
+        `${number(candidate.loadKwPct)} % по кВт / ${number(candidate.loadKvaPct)} % по кВА`],
+      ["Тип АКБ", batteryType(candidate)],
+      ["Встроенная АКБ",
+        u.builtInEnergyKwh > 0
+          ? `${number(u.builtInEnergyKwh, 2)} кВт·ч на расчётную единицу ИБП, всего ${number(candidate.builtEnergyKwh, 2)} кВт·ч. Входит в стоимость ИБП`
+          : "Нет"],
+      ["Внешние АКБ", b ? b.model : "Нет"],
+      ["Количество внешних АКБ",
+        b
+          ? `${candidate.K} на расчётную группу, всего ${candidate.totalBatteries}`
+          : "0"],
+      ["Полная энергия АКБ",
+        `${number(candidate.fullEnergyKwh, 2)} кВт·ч`],
+      ["Полезная энергия АКБ",
+        `${number(candidate.usefulEnergyKwh, 2)} кВт·ч`],
+      ["Расчётная автономия выбранной конфигурации",
+        UpsCalc.duration(candidate.runtimeMin)],
+      ["Целевая автономия",
+        `${number(result.input.minutes, 1)} мин`],
+      [candidate.deltaMin >= 0 ? "Запас автономии" : "Дефицит автономии",
+        `${number(Math.abs(candidate.deltaMin), 2)} мин / ${number(Math.abs(candidate.deltaPct), 2)} %`],
+      ["Ориентировочное время заряда",
+        `${number(candidate.chargeMinH)}–${number(candidate.chargeMaxH)} ч`],
+      ["Рекомендуемая мощность сети по вводному автомату",
+        candidate.allocatedKw == null
+          ? "Требуется отдельный расчёт"
+          : `${number(candidate.allocatedKw, 2)} кВт`],
+      ["Вводной автомат", breaker],
+      ["Дата обновления цен", candidate.priceDate]
+    );
+
     return rows;
   }
 
-  function addLink(parent, url, title) {
+  function headerRows(candidate) {
+    const product = candidate.product;
+    const battery = candidate.battery;
+    const rows = [
+      ["ИБП", product.model],
+      ["Цена одного ИБП",
+        product.showPrice ? money(product.priceRub) : "цена по запросу"],
+      ["Количество ИБП для покупки", `${candidate.productCount} шт`],
+      ["Стоимость ИБП", money(candidate.upsCost)],
+      ["Внешние АКБ", battery ? battery.model : "Не требуются"]
+    ];
+
+    if (battery) {
+      rows.push(
+        ["Цена одной внешней АКБ",
+          battery.showPrice ? money(battery.priceRub) : "цена по запросу"],
+        ["Количество внешних АКБ", `${candidate.totalBatteries} шт`]
+      );
+    }
+
+    rows.push(
+      ["Стоимость внешних АКБ", money(candidate.batteryCost)],
+      ["Итоговая стоимость конфигурации", money(candidate.totalCost)]
+    );
+    return rows;
+  }
+
+  function resultMessage(result) {
+    if (!result.successfulCount) {
+      return result.selected.length
+        ? "Целевая автономия не достигается либо обязательные ограничения не выполнены. Показаны ближайшие конфигурации, они не являются подходящими."
+        : "Подходящих вариантов нет. Проверьте причины отказа.";
+    }
+    if (result.mode === "unpriced") {
+      return "Подходящих конфигураций с известной итоговой ценой нет. Показан вариант Б с максимальной автономией. Вариант А и ограничение стоимости определить невозможно.";
+    }
+
+    return `Вариант А выбирается по минимальной стоимости. Для варианта Б предел известной итоговой стоимости составляет ${money(result.priceLimitRub)} – не выше 170 % стоимости А. Конфигурации без цены участвуют в выборе Б без проверки этого ограничения.`;
+  }
+
+  function addLink(parent, url) {
     if (!url) {
-      parent.append(element("p", `${title}. Ссылка отсутствует.`));
+      parent.append(element("p", "Ссылка на модель ИБП отсутствует.", "muted"));
       return;
     }
-    const link = element("a", title);
+    const link = element("a", "Страница модели ИБП");
     link.href = url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
@@ -248,41 +314,64 @@
 
   function render(result) {
     $("requirements").replaceChildren();
-    const dl = element("dl", null, "requirement-grid");
-    requirementRows(result).forEach(([title, value]) => metric(dl, title, value));
-    $("requirements").append(dl);
-    $("requirements").append(element("p",
-      "Общая требуемая энергия рассчитана с КПД и DoD по умолчанию. В карточках применяются характеристики выбранной модели.",
-      "muted"));
+    const requirementList = element("dl", null, "requirement-grid");
+    requirementRows(result).forEach(([title, value]) => {
+      metric(requirementList, title, value);
+    });
+    $("requirements").append(requirementList);
 
-    $("result-message").textContent = result.successfulCount
-      ? `Подходящих конфигураций ${result.successfulCount}. Показано ${result.selected.length}.`
-      : result.selected.length
-        ? "Целевая автономия не достигается либо конфигурации не проходят обязательные ограничения. Показаны ближайшие варианты, их нельзя считать подходящими."
-        : "Подходящих вариантов нет. Проверьте причины отказа.";
-
+    $("result-message").textContent = resultMessage(result);
     $("variants").replaceChildren();
-    result.selected.forEach((v, index) => {
-      const card = element("article", null, `card ${v.status === "не соответствует" ? "fail" : "pass"}`);
-      card.append(element("h3", `Вариант ${index + 1}`));
+
+    result.selected.forEach(candidate => {
+      const card = element(
+        "article",
+        null,
+        `card ${candidate.status === "не соответствует" ? "fail" : "pass"}`
+      );
+
+      card.append(element("h3", `ИБП "${candidate.product.model}"`, "product-title"));
+
+      const prices = element("dl", null, "price-summary");
+      headerRows(candidate).filter(([title]) => title !== "ИБП")
+        .forEach(([title, value]) => metric(prices, title, value));
+      card.append(prices);
+
       const badges = element("div", null, "badges");
-      v.labels.forEach(label => badges.append(element("span", label, "badge")));
+      candidate.labels.forEach(label => {
+        badges.append(element("span", label, "badge"));
+      });
+      badges.append(element("span", candidate.status, "badge"));
       card.append(badges);
+
       const details = element("dl");
-      variantRows(v, result).forEach(([title, value]) => metric(details, title, value));
+      variantRows(candidate, result).forEach(([title, value]) => {
+        metric(details, title, value);
+      });
       card.append(details);
-      addLink(card, v.product.url, "Страница ИБП");
-      if (v.battery) addLink(card, v.battery.url, "Страница внешней АКБ");
+      addLink(card, candidate.product.url);
+
       const warnings = element("div", null, "warning");
-      [...v.failures.map(text => `Причина несоответствия. ${text}`), ...v.warnings]
-        .forEach(text => warnings.append(element("p", text)));
+      [
+        ...candidate.failures.map(reason =>
+          `Причина несоответствия. ${reason}`),
+        ...candidate.warnings
+      ].forEach(text => {
+        warnings.append(element("p", text));
+      });
       if (warnings.childNodes.length) card.append(warnings);
+
       $("variants").append(card);
     });
-    messages($("rejection-list"), result.rejections.map(r => `${r.reason}. Моделей ${r.count}.`));
-    $("rejection-list").append(element("p",
-      "Количество считается по уникальным SKU внутри каждой причины. Одна модель может иметь несколько причин; числа не следует складывать.",
-      "muted"));
+
+    messages($("rejection-list"), result.rejections.map(item =>
+      `${item.reason}. Моделей ${item.count}.`
+    ));
+    $("rejection-list").append(element(
+      "p",
+      "Одна модель может иметь несколько причин отказа. Количества не следует складывать.",
+      "muted"
+    ));
     $("rejections").open = !result.successfulCount;
     $("copy-status").textContent = "";
     $("copy-fallback").hidden = true;
@@ -292,54 +381,76 @@
   $("form").addEventListener("submit", event => {
     event.preventDefault();
     if (!catalog) return;
-    const result = UpsCalc.calculate(catalog, input());
-    showErrors(result.inputErrors);
-    if (Object.keys(result.inputErrors).length) {
-      $("results").hidden = true;
-      lastResult = null;
-      return;
+
+    try {
+      const result = UpsCalc.calculate(catalog, readInput());
+      showErrors(result.inputErrors);
+      if (Object.keys(result.inputErrors).length) {
+        clearResult();
+        return;
+      }
+      lastResult = result;
+      render(result);
+    } catch (error) {
+      clearResult();
+      $("input-errors").hidden = false;
+      $("input-errors").replaceChildren(
+        element("p", `Расчёт не выполнен. ${error.message}`)
+      );
     }
-    lastResult = result;
-    render(result);
   });
 
   function copyText(result) {
-    const x = result.input;
+    const input = result.input;
     const lines = [
       "Подбор ИБП и LFP АКБ",
-      `${catalog.meta.catalogName}. Версия ${catalog.meta.version}`,
       "",
       "Исходные данные",
-      `Сеть ${x.network === 3 ? "трёхфазная" : "однофазная"}, напряжение ${x.voltage} В`,
-      `Трёхфазные потребители ${x.threePhaseLoad ? "есть" : "нет"}`,
-      `Активная нагрузка ${x.activeW} Вт`,
-      `Индуктивная нагрузка ${x.inductiveW} Вт`,
-      `Целевая автономия ${x.minutes} мин`,
-      `Запас мощности ${x.reservePct} %`,
-      `Ток заряда ${x.chargeA} А на ИБП`,
-      `Бюджет ${x.budgetRub == null ? "без ограничения" : money(x.budgetRub)}`,
+      `Сеть – ${input.network === 3 ? "трёхфазная" : "однофазная"}`,
+      `Трёхфазные потребители – ${input.threePhaseLoad ? "есть" : "нет"}`,
+      `Активная нагрузка – ${input.activeW} Вт`,
+      `Индуктивная нагрузка – ${input.inductiveW} Вт`,
+      `Целевая автономия – ${input.minutes} мин`,
+      `Запас мощности – ${input.reservePct} %`,
       "",
       "Требования к системе"
     ];
-    requirementRows(result).forEach(([title, value]) => lines.push(`${title} – ${value}`));
-    lines.push("", $("result-message").textContent);
-    result.selected.forEach((v, i) => {
-      lines.push("", `Вариант ${i + 1}`, v.labels.join(", "));
-      variantRows(v, result).forEach(([title, value]) => lines.push(`${title} – ${value}`));
-      lines.push(`Ссылка ИБП – ${v.product.url || "не указана"}`);
-      if (v.battery) lines.push(`Ссылка АКБ – ${v.battery.url || "не указана"}`);
-      v.failures.forEach(text => lines.push(`Причина несоответствия – ${text}`));
-      v.warnings.forEach(text => lines.push(`Предупреждение – ${text}`));
+
+    requirementRows(result).forEach(([title, value]) => {
+      lines.push(`${title} – ${value}`);
     });
-    lines.push("", "Причины отказа и ограничения");
-    result.rejections.forEach(r => lines.push(`${r.reason} – моделей ${r.count}`));
-    lines.push("", "Предварительный расчёт. Не заменяет проектирование и подтверждение характеристик производителем.");
+    lines.push("", resultMessage(result));
+
+    result.selected.forEach((candidate, index) => {
+      lines.push("", `Конфигурация ${index + 1}`, candidate.labels.join(", "));
+      headerRows(candidate).forEach(([title, value]) => {
+        lines.push(`${title} – ${value}`);
+      });
+      variantRows(candidate, result).forEach(([title, value]) => {
+        lines.push(`${title} – ${value}`);
+      });
+      lines.push(
+        `Ссылка на модель ИБП – ${candidate.product.url || "не указана"}`
+      );
+      candidate.failures.forEach(text => {
+        lines.push(`Причина несоответствия – ${text}`);
+      });
+      candidate.warnings.forEach(text => {
+        lines.push(`Предупреждение – ${text}`);
+      });
+    });
+
+    lines.push(
+      "",
+      "Предварительный расчёт. Не заменяет проектирование и подтверждение характеристик производителем."
+    );
     return lines.join("\n");
   }
 
   $("copy").addEventListener("click", async () => {
     if (!lastResult) return;
     const text = copyText(lastResult);
+
     try {
       if (!navigator.clipboard) throw new Error("Буфер обмена недоступен.");
       await navigator.clipboard.writeText(text);
@@ -349,7 +460,8 @@
       $("copy-fallback").hidden = false;
       $("copy-fallback").focus();
       $("copy-fallback").select();
-      $("copy-status").textContent = "Автоматическое копирование недоступно. Скопируйте выделенный текст вручную.";
+      $("copy-status").textContent =
+        "Скопируйте выделенный текст вручную.";
     }
   });
 })();
