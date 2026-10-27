@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Предварительный подбор ИБП Coway и LFP аккумуляторов по мощности, автономии и бюджету.">
+  <meta name="description" content="Подбор ИБП Coway и LFP аккумуляторов по нагрузке и времени автономии.">
   <title>Подбор ИБП и LFP АКБ</title>
   <link rel="stylesheet" href="style.css">
   <script defer src="calc.js"></script>
@@ -13,13 +13,14 @@
   <main class="container">
     <header>
       <h1>Подбор ИБП и LFP АКБ</h1>
-      <p>Расчёт по встроенному каталогу Coway. Без регистрации и отправки введённых данных на сервер.</p>
-      <p class="muted">Предварительный подбор. Совместимость, схемы подключения, защиту и паспортные характеристики необходимо подтвердить перед покупкой.</p>
+      <p>Введите нагрузку и требуемое время автономии. Калькулятор предложит до двух конфигураций оборудования.</p>
+      <p class="muted">Предварительный подбор. Перед покупкой необходимо подтвердить совместимость и схемы подключения у производителя.</p>
     </header>
 
     <section class="panel" aria-labelledby="input-title">
       <h2 id="input-title">Исходные данные</h2>
       <p id="catalog-status" role="status">Загрузка каталога…</p>
+
       <div id="manual-catalog" hidden>
         <label for="catalog-file">Выберите catalog.json вручную</label>
         <input id="catalog-file" type="file" accept=".json,application/json">
@@ -35,11 +36,7 @@
             </select>
             <span class="error" id="error-network"></span>
           </div>
-          <div class="field">
-            <label for="voltage">Напряжение сети, В</label>
-            <input id="voltage" name="voltage" type="number" value="230" min="100" max="500" step="any" aria-describedby="error-voltage">
-            <span class="error" id="error-voltage"></span>
-          </div>
+
           <div class="field">
             <label for="threePhaseLoad">Трёхфазные потребители</label>
             <select id="threePhaseLoad" name="threePhaseLoad" disabled>
@@ -48,37 +45,32 @@
             </select>
             <span class="error" id="error-threePhaseLoad"></span>
           </div>
+
           <div class="field">
             <label for="activeW">Активная нагрузка, Вт</label>
             <input id="activeW" name="activeW" type="number" min="0" step="any" required aria-describedby="error-activeW">
             <span class="error" id="error-activeW"></span>
           </div>
+
           <div class="field">
             <label for="inductiveW">Индуктивная нагрузка, Вт</label>
             <input id="inductiveW" name="inductiveW" type="number" min="0" step="any" placeholder="0" aria-describedby="error-inductiveW">
             <span class="error" id="error-inductiveW"></span>
           </div>
+
           <div class="field">
             <label for="minutes">Целевая автономия, мин</label>
             <input id="minutes" name="minutes" type="number" min="0" step="any" required aria-describedby="error-minutes">
             <span class="error" id="error-minutes"></span>
           </div>
+
           <div class="field">
             <label for="reservePct">Запас мощности, %</label>
             <input id="reservePct" name="reservePct" type="number" value="25" min="0" max="100" step="any" aria-describedby="error-reservePct">
             <span class="error" id="error-reservePct"></span>
           </div>
-          <div class="field">
-            <label for="chargeA">Ток заряда на один ИБП, А</label>
-            <input id="chargeA" name="chargeA" type="number" value="30" min="0" step="any" aria-describedby="error-chargeA">
-            <span class="error" id="error-chargeA"></span>
-          </div>
-          <div class="field">
-            <label for="budgetRub">Максимальный бюджет, руб</label>
-            <input id="budgetRub" name="budgetRub" type="number" min="0" step="any" placeholder="Без ограничения" aria-describedby="error-budgetRub">
-            <span class="error" id="error-budgetRub"></span>
-          </div>
         </div>
+
         <div id="input-errors" class="error" role="alert" hidden></div>
         <button id="calculate" type="submit" disabled>Подобрать оборудование</button>
       </form>
@@ -95,20 +87,23 @@
         <h2>Требования к системе</h2>
         <div id="requirements"></div>
       </div>
+
       <p id="result-message" role="status"></p>
       <div id="variants" class="cards"></div>
+
       <details id="rejections" class="panel">
         <summary>Причины отказа и ограничения</summary>
         <div id="rejection-list"></div>
       </details>
+
       <button id="copy" type="button">Скопировать результат</button>
       <p id="copy-status" role="status"></p>
       <textarea id="copy-fallback" readonly hidden aria-label="Результат для ручного копирования"></textarea>
     </section>
 
     <footer>
-      <p>Монтаж, кабели, коммутация, доставка и согласование выделенной мощности в стоимость оборудования не включены.</p>
-      <p>Модель предполагает постоянную нагрузку и равномерное распределение трёхфазной нагрузки. Температура, собственное потребление, изменение КПД и ограничения BMS могут уменьшить автономию.</p>
+      <p>Монтаж, доставка и дополнительная коммутация в стоимость оборудования не включены.</p>
+      <p>Расчёт предполагает постоянную нагрузку. Температура, изменение КПД и ограничения аккумуляторов могут уменьшить автономию.</p>
     </footer>
   </main>
 </body>
